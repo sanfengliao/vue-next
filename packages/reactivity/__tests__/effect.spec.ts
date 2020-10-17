@@ -20,7 +20,10 @@ describe('reactivity/effect', () => {
   it('should observe basic properties', () => {
     let dummy
     const counter = reactive({ num: 0 })
-    effect(() => (dummy = counter.num))
+    const fn = () => {
+      dummy = counter.num
+    }
+    effect(fn)
 
     expect(dummy).toBe(0)
     counter.num = 7

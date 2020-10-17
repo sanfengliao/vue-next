@@ -20,10 +20,10 @@ export const enum ReactiveFlags {
 }
 
 export interface Target {
-  [ReactiveFlags.SKIP]?: boolean
-  [ReactiveFlags.IS_REACTIVE]?: boolean
-  [ReactiveFlags.IS_READONLY]?: boolean
-  [ReactiveFlags.RAW]?: any
+  [ReactiveFlags.SKIP]?: boolean // 是否跳过响应式
+  [ReactiveFlags.IS_REACTIVE]?: boolean // 是否是响应式对象
+  [ReactiveFlags.IS_READONLY]?: boolean // 是否是readonly对象
+  [ReactiveFlags.RAW]?: any // 响应式对象的原始数据
 }
 
 export const reactiveMap = new WeakMap<Target, any>()
@@ -62,9 +62,11 @@ type UnwrapNestedRefs<T> = T extends Ref ? T : UnwrapRef<T>
 export function reactive<T extends object>(target: T): UnwrapNestedRefs<T>
 export function reactive(target: object) {
   // if trying to observe a readonly proxy, return the readonly version.
+  // 如果当前target已经是一个只读proxy了，则直接返回
   if (target && (target as Target)[ReactiveFlags.IS_READONLY]) {
     return target
   }
+  // 调用createReactiveObject创建响应式对象
   return createReactiveObject(
     target,
     false,
@@ -133,12 +135,20 @@ export function shallowReadonly<T extends object>(
   )
 }
 
+/**
+ *
+ * @param target 传入的object，或者集合(map、set之类)
+ * @param isReadonly 是否是只读
+ * @param baseHandlers target是普通object时 传给Proxy构造函数的第二个参数
+ * @param collectionHandlers target是集合(map、set等)时 传给Proxy构造函数的第二个参数
+ */
 function createReactiveObject(
   target: Target,
   isReadonly: boolean,
   baseHandlers: ProxyHandler<any>,
   collectionHandlers: ProxyHandler<any>
 ) {
+  // 如何target不是一个object，则直接返回
   if (!isObject(target)) {
     if (__DEV__) {
       console.warn(`value cannot be made reactive: ${String(target)}`)
@@ -147,6 +157,7 @@ function createReactiveObject(
   }
   // target is already a Proxy, return it.
   // exception: calling readonly() on a reactive object
+  // 如果target已经是一个响应式proxy，则直接返回
   if (
     target[ReactiveFlags.RAW] &&
     !(isReadonly && target[ReactiveFlags.IS_REACTIVE])
@@ -154,21 +165,26 @@ function createReactiveObject(
     return target
   }
   // target already has corresponding Proxy
+  // 如果target已经有对应的响应式proxy了，则获取对应的proxy并返回
   const proxyMap = isReadonly ? readonlyMap : reactiveMap
   const existingProxy = proxyMap.get(target)
   if (existingProxy) {
     return existingProxy
   }
   // only a whitelist of value types can be observed.
+  // 判断target是否是可以被proxy的类型，如果不是则直接返回
   const targetType = getTargetType(target)
   if (targetType === TargetType.INVALID) {
     return target
   }
+  // 创建响应式proxy
   const proxy = new Proxy(
     target,
     targetType === TargetType.COLLECTION ? collectionHandlers : baseHandlers
   )
+  // 将target映射到proxy中，
   proxyMap.set(target, proxy)
+  // 返回
   return proxy
 }
 
