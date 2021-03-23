@@ -100,6 +100,7 @@ export function advancePositionWithClone(
 
 // advance by mutation without cloning (for performance reasons), since this
 // gets called a lot in the parser
+// 重新结算offset, line, column
 export function advancePositionWithMutation(
   pos: Position,
   source: string,

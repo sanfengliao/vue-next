@@ -78,6 +78,7 @@ export function baseCompile(
     onError(createCompilerError(ErrorCodes.X_SCOPE_ID_NOT_SUPPORTED))
   }
   debugger
+  // 调用baseParse生成ast
   const ast = isString(template) ? baseParse(template, options) : template
   const [nodeTransforms, directiveTransforms] = getBaseTransformPreset(
     prefixIdentifiers
