@@ -400,6 +400,7 @@ export function createComponentInstance(
 ) {
   const type = vnode.type as ConcreteComponent
   // inherit parent app context - or - if root, adopt from root vnode
+  // 获取appContext
   const appContext =
     (parent ? parent.appContext : vnode.appContext) || emptyAppContext
 
@@ -468,12 +469,15 @@ export function createComponentInstance(
     rtc: null,
     ec: null
   }
+  // 在开发环境下，创建renderContext，这样在开发时避免如修改props等非法操作
   if (__DEV__) {
     instance.ctx = createRenderContext(instance)
   } else {
     instance.ctx = { _: instance }
   }
+  // 存储根节点(根实例)
   instance.root = parent ? parent.root : instance
+  // 定义instance的emit函数
   instance.emit = emit.bind(null, instance)
 
   if (__DEV__ || __FEATURE_PROD_DEVTOOLS__) {
@@ -513,11 +517,15 @@ export function setupComponent(
 ) {
   isInSSRComponentSetup = isSSR
 
+  // 获取vnode的props, children, shapeFlag
   const { props, children, shapeFlag } = instance.vnode
+  // 是否是STATEFUL_COMPONENT
   const isStateful = shapeFlag & ShapeFlags.STATEFUL_COMPONENT
+  // 初始化props children 这里的props是我们传递给组件的props，而不是定义组件时的props
   initProps(instance, props, isStateful, isSSR)
   initSlots(instance, children)
 
+  // 调用setup函数
   const setupResult = isStateful
     ? setupStatefulComponent(instance, isSSR)
     : undefined
@@ -532,15 +540,18 @@ function setupStatefulComponent(
   const Component = instance.type as ComponentOptions
 
   if (__DEV__) {
+    // 检查组件名是否合法
     if (Component.name) {
       validateComponentName(Component.name, instance.appContext.config)
     }
+    // 检查使用的组件是否是合法组件
     if (Component.components) {
       const names = Object.keys(Component.components)
       for (let i = 0; i < names.length; i++) {
         validateComponentName(names[i], instance.appContext.config)
       }
     }
+    // 检查使用的指令是否合法
     if (Component.directives) {
       const names = Object.keys(Component.directives)
       for (let i = 0; i < names.length; i++) {
@@ -559,6 +570,7 @@ function setupStatefulComponent(
   // 2. call setup()
   const { setup } = Component
   if (setup) {
+    // 创建setupContenxt，就是传递setup函数的第二个参数
     const setupContext = (instance.setupContext =
       setup.length > 1 ? createSetupContext(instance) : null)
 
@@ -568,11 +580,12 @@ function setupStatefulComponent(
       setup,
       instance,
       ErrorCodes.SETUP_FUNCTION,
+      // 开发环境下使用shallowReadonly封装props，避免props被修改
       [__DEV__ ? shallowReadonly(instance.props) : instance.props, setupContext]
     )
     resetTracking()
     currentInstance = null
-
+    // 处理setup函数返回值
     if (isPromise(setupResult)) {
       if (isSSR) {
         // return the promise so server-renderer can wait on it
@@ -602,6 +615,7 @@ export function handleSetupResult(
   setupResult: unknown,
   isSSR: boolean
 ) {
+  // 如果setup返回值是个函数，则将该函数作为instance的render函数
   if (isFunction(setupResult)) {
     // setup returned an inline render function
     instance.render = setupResult as InternalRenderFunction
@@ -617,6 +631,7 @@ export function handleSetupResult(
     if (__DEV__ || __FEATURE_PROD_DEVTOOLS__) {
       instance.devtoolsRawSetupState = setupResult
     }
+    // 将函数返回值保存在instance的setupState上
     instance.setupState = proxyRefs(setupResult)
     if (__DEV__) {
       exposeSetupStateOnRenderContext(instance)
@@ -628,6 +643,7 @@ export function handleSetupResult(
       }`
     )
   }
+  // 调用finishComponentSetup
   finishComponentSetup(instance, isSSR)
 }
 
@@ -659,6 +675,7 @@ function finishComponentSetup(
     }
   } else if (!instance.render) {
     // could be set from setup()
+    // 如果存在render函数，编译template生成render函数
     if (compile && Component.template && !Component.render) {
       if (__DEV__) {
         startMeasure(instance, `compile`)
@@ -685,6 +702,7 @@ function finishComponentSetup(
     }
   }
 
+  // Vue2.x Options API处理
   // support for 2.x options
   if (__FEATURE_OPTIONS_API__) {
     currentInstance = instance

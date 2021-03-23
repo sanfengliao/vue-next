@@ -30,6 +30,8 @@ let renderer: Renderer<Element> | HydrationRenderer
 let enabledHydration = false
 
 function ensureRenderer() {
+  // 调用createRenderer生成renderer并返回
+  // rendererOptions定义一些操作DOM的API
   return renderer || (renderer = createRenderer<Node, Element>(rendererOptions))
 }
 
@@ -51,22 +53,31 @@ export const hydrate = ((...args) => {
 }) as RootHydrateFunction
 
 export const createApp = ((...args) => {
+  // 调用ensureRenderer创建一个render，并调用render的createApp函数创建app
   const app = ensureRenderer().createApp(...args)
 
   if (__DEV__) {
     injectNativeTagCheck(app)
   }
 
+  // 获取app上面的mount函数
   const { mount } = app
+  // 重写app mount方法
   app.mount = (containerOrSelector: Element | string): any => {
+    // 获取要挂载到的 container
     const container = normalizeContainer(containerOrSelector)
     if (!container) return
+    // 获取app的_component的值，这里的_component应该就是我们传给createApp的参数
+    // TODO
     const component = app._component
+    // 如果component不是函数，而且component没有定义render函数，component的template没有值,则将
+    // container的innerHTML作为component的template，template用于生成render函数
     if (!isFunction(component) && !component.render && !component.template) {
       component.template = container.innerHTML
     }
     // clear content before mounting
     container.innerHTML = ''
+    // 调用原来的mount函数将Vue App 挂载在container上
     const proxy = mount(container)
     container.removeAttribute('v-cloak')
     container.setAttribute('data-v-app', '')

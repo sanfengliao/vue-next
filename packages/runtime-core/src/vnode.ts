@@ -258,6 +258,7 @@ export function isVNode(value: any): value is VNode {
   return value ? value.__v_isVNode === true : false
 }
 
+// isSameVNodeType只判断type和key是否都相同来判断是否是同一个vnode
 export function isSameVNodeType(n1: VNode, n2: VNode): boolean {
   if (
     __DEV__ &&
@@ -329,6 +330,7 @@ function _createVNode(
     type = Comment
   }
 
+  // 判断是否是一个vnode
   if (isVNode(type)) {
     // createVNode receiving an existing vnode. This happens in cases like
     // <component :is="vnode"/>
@@ -346,6 +348,7 @@ function _createVNode(
   }
 
   // class & style normalization.
+  // 规范 class 和 style 属性
   if (props) {
     // for reactive or proxy objects, we need to clone it to enable mutation.
     if (isProxy(props) || InternalObjectKey in props) {
@@ -366,6 +369,7 @@ function _createVNode(
   }
 
   // encode the vnode type information into a bitmap
+  // 判断component的类型
   const shapeFlag = isString(type)
     ? ShapeFlags.ELEMENT
     : __FEATURE_SUSPENSE__ && isSuspense(type)
@@ -390,6 +394,7 @@ function _createVNode(
     )
   }
 
+  // 创建vnode, 这里保存了一些列属性
   const vnode: VNode = {
     __v_isVNode: true,
     [ReactiveFlags.SKIP]: true,
@@ -425,6 +430,7 @@ function _createVNode(
   normalizeChildren(vnode, children)
 
   // normalize suspense children
+  // 规范化suspense的children
   if (__FEATURE_SUSPENSE__ && shapeFlag & ShapeFlags.SUSPENSE) {
     const { content, fallback } = normalizeSuspenseChildren(vnode)
     vnode.ssContent = content

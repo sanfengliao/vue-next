@@ -2,7 +2,7 @@
 
 <!-- DemoGrid component template -->
 <script type="text/x-template" id="grid-template">
-  <table v-if="filteredData.length" @click="onClick">
+  <table v-if="filteredData.length">
     <thead>
       <tr>
         <th v-for="key in columns"
@@ -38,7 +38,7 @@ const DemoGrid = {
     filterKey: String
   },
   setup(props) {
-    tmp = getCurrentInstance()
+    temp = getCurrentInstance();
     const state = reactive({
       sortKey: '',
       sortOrders: props.columns.reduce((o, key) => (o[key] = 1, o), {})
@@ -77,44 +77,46 @@ const DemoGrid = {
       sortBy,
       capitalize
     }
-  },
-  methods: {
-    onClick() {
-      debugger;
-      console.log(this)
-      console.log(tmp.proxy);
-    }
   }
 }
 </script>
 
 <!-- App template (in DOM) -->
 <div id="demo">
-  <form id="search">
-    Search <input name="query" v-model="searchQuery">
-  </form>
-  <demo-grid
-    :data="gridData"
-    :columns="gridColumns"
-    :filter-key="searchQuery">
-  </demo-grid>
+  <span>
+    <DemoGrid />
+  </span>
 </div>
 <!-- App script -->
 <script>
+const { ref, onUpdated } = Vue
 Vue.createApp({
   components: {
     DemoGrid
   },
-  data: () => ({
-    searchQuery: '',
-    gridColumns: ['name', 'power'],
-    gridData: [
-      { name: 'Chuck Norris', power: Infinity },
-      { name: 'Bruce Lee', power: 9000 },
-      { name: 'Jackie Chan', power: 7000 },
-      { name: 'Jet Li', power: 8000 }
-    ]
-  })
+  props: {
+
+  },
+  setup() {
+    const msg = ref('helloworld')
+    const msg2 = ref('helloworld2')
+    onUpdated(() => {
+      console.log('updated')
+    })
+    setTimeout(() => {
+      msg.value = 'hello'
+      msg2.value = 'hello2'
+    })
+    const handleClick = (msgs) => {
+      console.log(msgs)
+      msg.value = 'lslsl'
+    }
+    return {
+      msg,
+      msg2,
+      handleClick
+    }
+  }
 }).mount('#demo')
 </script>
 

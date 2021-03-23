@@ -128,6 +128,7 @@ export function initProps(
 
   if (isStateful) {
     // stateful
+    // 对props做响应式处理，因为props的每个key的值已经是reactive proxy了，所以这里只需要做shallowReactive
     instance.props = isSSR ? props : shallowReactive(props)
   } else {
     if (!instance.type.props) {
@@ -244,6 +245,13 @@ export function updateProps(
   }
 }
 
+/**
+ *
+ * @param instance
+ * @param rawProps 传递给组件的props
+ * @param props 规范化后的props
+ * @param attrs 没有声明在组件定义的props options的属性放在attrs中
+ */
 function setFullProps(
   instance: ComponentInternalInstance,
   rawProps: Data | null,
@@ -261,6 +269,7 @@ function setFullProps(
       // prop option names are camelized during normalization, so to support
       // kebab -> camel conversion here we need to camelize the key.
       let camelKey
+      // 如果key声明在props options中，将值保存在props中，否则保存在attrs中
       if (options && hasOwn(options, (camelKey = camelize(key)))) {
         props[camelKey] = value
       } else if (!isEmitListener(instance.emitsOptions, key)) {
@@ -272,6 +281,7 @@ function setFullProps(
     }
   }
 
+  // 强制转换props，比如boolean的属性，有默认值的props
   if (needCastKeys) {
     const rawCurrentProps = toRaw(props)
     for (let i = 0; i < needCastKeys.length; i++) {
@@ -300,6 +310,7 @@ function resolvePropValue(
     // default values
     if (hasDefault && value === undefined) {
       const defaultValue = opt.default
+      // 如果定义的props的type不是Function且defaultValue的是个函数，则调用函数获取默认值
       if (opt.type !== Function && isFunction(defaultValue)) {
         setCurrentInstance(instance)
         value = defaultValue(props)
@@ -309,6 +320,7 @@ function resolvePropValue(
       }
     }
     // boolean casting
+    // boolean类型的处理
     if (opt[BooleanFlags.shouldCast]) {
       if (!hasOwn(props, key) && !hasDefault) {
         value = false

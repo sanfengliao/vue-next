@@ -110,7 +110,11 @@ export type CreateAppFunction<HostElement> = (
 ) => App<HostElement>
 
 let uid = 0
-
+/**
+ * createAppAPI就返回了一个createApp函数, 就这个ensureRenderer().createApp
+ * @param render baseCreateRenderer中定义的render函数
+ * @param hydrate
+ */
 export function createAppAPI<HostElement>(
   render: RootRenderFunction,
   hydrate?: RootHydrateFunction
@@ -121,9 +125,11 @@ export function createAppAPI<HostElement>(
       rootProps = null
     }
 
+    // 创建appContext, app是一个对象，上面定义了vue app 运行过程中会用的config,component, plugin， minxin
     const context = createAppContext()
+    // 创建Set, 保存已经安装的plugin
     const installedPlugins = new Set()
-
+    // 标记该Vue App 是否已经mounted
     let isMounted = false
 
     const app: App = (context.app = {
@@ -147,6 +153,7 @@ export function createAppAPI<HostElement>(
         }
       },
 
+      // 安装plugin(插件)
       use(plugin: Plugin, ...options: any[]) {
         if (installedPlugins.has(plugin)) {
           __DEV__ && warn(`Plugin has already been applied to target app.`)
@@ -165,6 +172,7 @@ export function createAppAPI<HostElement>(
         return app
       },
 
+      // 安装mixin
       mixin(mixin: ComponentOptions) {
         if (__FEATURE_OPTIONS_API__) {
           if (!context.mixins.includes(mixin)) {
@@ -181,6 +189,7 @@ export function createAppAPI<HostElement>(
         return app
       },
 
+      // 组册component(组件)
       component(name: string, component?: Component): any {
         if (__DEV__) {
           validateComponentName(name, context.config)
@@ -195,6 +204,7 @@ export function createAppAPI<HostElement>(
         return app
       },
 
+      // 注册directive(指令)
       directive(name: string, directive?: Directive) {
         if (__DEV__) {
           validateDirectiveName(name)
@@ -210,17 +220,22 @@ export function createAppAPI<HostElement>(
         return app
       },
 
+      // mount函数将Vue App 挂载在 container里面
       mount(rootContainer: HostElement, isHydrate?: boolean): any {
+        // 如果还没有mount
         if (!isMounted) {
+          // 创建VNode
           const vnode = createVNode(
             rootComponent as ConcreteComponent,
             rootProps
           )
           // store app context on the root VNode.
           // this will be set on the root instance on initial mount.
+          // 将vnode的appContext设置为context
           vnode.appContext = context
 
           // HMR root reload
+          // 热更新
           if (__DEV__) {
             context.reload = () => {
               render(cloneVNode(vnode), rootContainer)
@@ -230,11 +245,15 @@ export function createAppAPI<HostElement>(
           if (isHydrate && hydrate) {
             hydrate(vnode as VNode<Node, Element>, rootContainer as any)
           } else {
+            // 调用baseCreateRenderer中定义的render函数，将vnode render(渲染)到 container 中
             render(vnode, rootContainer)
           }
+          // 标记Vue App 已经挂载
           isMounted = true
+          // 将rootContainer赋值app._container
           app._container = rootContainer
           // for devtools and telemetry
+          // 将app(Vue App)挂载rootContainer的__vue_app__
           ;(rootContainer as any).__vue_app__ = app
 
           if (__DEV__ || __FEATURE_PROD_DEVTOOLS__) {

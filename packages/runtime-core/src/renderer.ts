@@ -392,6 +392,7 @@ export function createRenderer<
   HostNode = RendererNode,
   HostElement = RendererElement
 >(options: RendererOptions<HostNode, HostElement>) {
+  // 调用baseCreateRenderer创建renderer
   return baseCreateRenderer<HostNode, HostElement>(options)
 }
 
@@ -416,6 +417,11 @@ function baseCreateRenderer(
   createHydrationFns: typeof createHydrationFunctions
 ): HydrationRenderer
 
+/**
+ * baseCreateRenderer返回一个对象, 对象上有
+ * render, hydrate, createApp (ensureRenderer().createApp就是这个createApp)三个属性
+ * createApp有createAppAPI创建出来
+ */
 // implementation
 function baseCreateRenderer(
   options: RendererOptions,
@@ -456,6 +462,7 @@ function baseCreateRenderer(
     optimized = false
   ) => {
     // patching & not same type, unmount old tree
+    // 如果n1不为空且n1和n2不是用一个VNode，先卸载旧的vNode(n1)，
     if (n1 && !isSameVNodeType(n1, n2)) {
       anchor = getNextHostNode(n1)
       unmount(n1, parentComponent, parentSuspense, true)
@@ -468,6 +475,7 @@ function baseCreateRenderer(
     }
 
     const { type, ref, shapeFlag } = n2
+    // 根据type和shapeFlag的类型来使用不同的process来处理
     switch (type) {
       case Text:
         processText(n1, n2, container, anchor)
@@ -496,6 +504,7 @@ function baseCreateRenderer(
         break
       default:
         if (shapeFlag & ShapeFlags.ELEMENT) {
+          // 处理普通的html元素
           processElement(
             n1,
             n2,
@@ -507,6 +516,7 @@ function baseCreateRenderer(
             optimized
           )
         } else if (shapeFlag & ShapeFlags.COMPONENT) {
+          // 处理component
           processComponent(
             n1,
             n2,
@@ -1198,7 +1208,9 @@ function baseCreateRenderer(
     isSVG: boolean,
     optimized: boolean
   ) => {
+    // 如何n1(oldVNode)为空，mount component, 否则update component
     if (n1 == null) {
+      // 如果n2被keep-alive包裹, 重新重新激活
       if (n2.shapeFlag & ShapeFlags.COMPONENT_KEPT_ALIVE) {
         ;(parentComponent!.ctx as KeepAliveContext).activate(
           n2,
@@ -1208,6 +1220,7 @@ function baseCreateRenderer(
           optimized
         )
       } else {
+        // 调用mountComponent mount(挂载)组件
         mountComponent(
           n2,
           container,
@@ -1232,22 +1245,26 @@ function baseCreateRenderer(
     isSVG,
     optimized
   ) => {
+    // 根据vnode创建componentInstance(ComponentInternalInstance实例)
     const instance: ComponentInternalInstance = (initialVNode.component = createComponentInstance(
       initialVNode,
       parentComponent,
       parentSuspense
     ))
 
+    // 热更新
     if (__DEV__ && instance.type.__hmrId) {
       registerHMR(instance)
     }
 
+    // 开发环境下做性能检测
     if (__DEV__) {
       pushWarningContext(initialVNode)
       startMeasure(instance, `mount`)
     }
 
     // inject renderer internals for keepAlive
+    // 为KeepAlive注入renderer属性
     if (isKeepAlive(initialVNode)) {
       ;(instance.ctx as KeepAliveContext).renderer = internals
     }
@@ -1256,6 +1273,7 @@ function baseCreateRenderer(
     if (__DEV__) {
       startMeasure(instance, `init`)
     }
+    // 初始化组件数据， 包括 props
     setupComponent(instance)
     if (__DEV__) {
       endMeasure(instance, `init`)
@@ -1275,6 +1293,7 @@ function baseCreateRenderer(
       return
     }
 
+    // 调用render函数收集依赖啥的
     setupRenderEffect(
       instance,
       initialVNode,
@@ -1336,17 +1355,23 @@ function baseCreateRenderer(
     optimized
   ) => {
     // create reactive effect for rendering
+    // 使用effect函数收集依赖
+    // effect调用effect函数时传入了第二个参数prodEffectOptions，prodEffectOptions定义scheduler函数，根据
+    // 根据vue 响应式系统中 effect工作原理, 在调用effect中传入了scheduler，会调用scheduler来触发依赖, scheduler接收
+    // 当前正在触发的effect作为参数, 在这里的话就是instance.update，就是这里定义的effect函数的返回值
     instance.update = effect(function componentEffect() {
       if (!instance.isMounted) {
         let vnodeHook: VNodeHook | null | undefined
         const { el, props } = initialVNode
+        // 获取bm, m函数
         const { bm, m, parent } = instance
 
-        // beforeMount hook
+        // beforeMount hook 调用组件的beforeMount
         if (bm) {
           invokeArrayFns(bm)
         }
         // onVnodeBeforeMount
+        // 如果父组件监听了自组件的BeforeMount钩子, 触发钩子
         if ((vnodeHook = props && props.onVnodeBeforeMount)) {
           invokeVNodeHook(vnodeHook, parent, initialVNode)
         }
@@ -1355,6 +1380,7 @@ function baseCreateRenderer(
         if (__DEV__) {
           startMeasure(instance, `render`)
         }
+        // 调用render函数, 创建子节点树
         const subTree = (instance.subTree = renderComponentRoot(instance))
         if (__DEV__) {
           endMeasure(instance, `render`)
@@ -1392,11 +1418,12 @@ function baseCreateRenderer(
           }
           initialVNode.el = subTree.el
         }
-        // mounted hook
+        // 将组件的mounted hook 加入post job queue
         if (m) {
           queuePostRenderEffect(m, parentSuspense)
         }
         // onVnodeMounted
+        // 如果父组件监听了当前组件(子组件)的mount hook，将监听函数加入post job queue
         if ((vnodeHook = props && props.onVnodeMounted)) {
           queuePostRenderEffect(() => {
             invokeVNodeHook(vnodeHook!, parent, initialVNode)
@@ -1405,6 +1432,7 @@ function baseCreateRenderer(
         // activated hook for keep-alive roots.
         // #1742 activated hook must be accessed after first render
         // since the hook may be injected by a child keep-alive
+        // 将aactivated加入post job queue
         const { a } = instance
         if (
           a &&
@@ -1423,19 +1451,23 @@ function baseCreateRenderer(
         if (__DEV__) {
           pushWarningContext(next || instance.vnode)
         }
-
+        // 如果存在next，则updateComponentPreRender更新next节点
         if (next) {
           updateComponentPreRender(instance, next, optimized)
         } else {
+          // 如果不存在，则使用old vnode
           next = vnode
         }
+        // vnode el赋值为next的el
         next.el = vnode.el
 
         // beforeUpdate hook
+        // 调用beforeUpdate hook
         if (bu) {
           invokeArrayFns(bu)
         }
         // onVnodeBeforeUpdate
+        // 如果父组件监听了子组件的beforeUpdate hook，则调用父组件的监听函数
         if ((vnodeHook = next.props && next.props.onVnodeBeforeUpdate)) {
           invokeVNodeHook(vnodeHook, parent, next, vnode)
         }
@@ -1444,10 +1476,12 @@ function baseCreateRenderer(
         if (__DEV__) {
           startMeasure(instance, `render`)
         }
+        // 调用render函数重新渲染子组件书
         const nextTree = renderComponentRoot(instance)
         if (__DEV__) {
           endMeasure(instance, `render`)
         }
+        // 原来的subTree作为oldVNode，新生成的nextTree作为newVNode，调用patch做dom更新
         const prevTree = instance.subTree
         instance.subTree = nextTree
 
@@ -1459,12 +1493,14 @@ function baseCreateRenderer(
         if (__DEV__) {
           startMeasure(instance, `patch`)
         }
+        // 更新vnode tree
         patch(
           prevTree,
           nextTree,
           // parent may have changed if it's in a teleport
           hostParentNode(prevTree.el!)!,
           // anchor may have changed if it's in a fragment
+          // 找到要插入的位置的下一个元素，这样可以使用HTMLElement.insertBefore将元素插入到dom中
           getNextHostNode(prevTree),
           instance,
           parentSuspense,
@@ -1478,13 +1514,16 @@ function baseCreateRenderer(
           // self-triggered update. In case of HOC, update parent component
           // vnode el. HOC is indicated by parent instance's subTree pointing
           // to child component's vnode
+          // 处理HOC 组件的el情况，将parent vonde的el设置为nextTree.el
           updateHOCHostEl(instance, nextTree.el)
         }
         // updated hook
+        // 将组件的update hook加入post job queue
         if (u) {
           queuePostRenderEffect(u, parentSuspense)
         }
         // onVnodeUpdated
+        // 将父组件监听子组件update hook的监听函数加入postpost job queue
         if ((vnodeHook = next.props && next.props.onVnodeUpdated)) {
           queuePostRenderEffect(() => {
             invokeVNodeHook(vnodeHook!, parent, next!, vnode)
@@ -2172,7 +2211,7 @@ function baseCreateRenderer(
       unmount(children[i], parentComponent, parentSuspense, doRemove, optimized)
     }
   }
-
+  // 获取当前vnode的下一个vnode，到dom tree中可以看作是获取当前元素下一个元素，然后使用insertBefore插入元素
   const getNextHostNode: NextFn = vnode => {
     if (vnode.shapeFlag & ShapeFlags.COMPONENT) {
       return getNextHostNode(vnode.component!.subTree)
@@ -2217,11 +2256,13 @@ function baseCreateRenderer(
   }
 
   const render: RootRenderFunction = (vnode, container) => {
+    // 如果vnode为空且container中已经挂载了vonde，调用unmount卸载app
     if (vnode == null) {
       if (container._vnode) {
         unmount(container._vnode, null, null, true)
       }
     } else {
+      // 调用patch将vnode挂载在container上, 这里的container._vnode可能是oldVNode，在update时会用到
       patch(container._vnode || null, vnode, container)
     }
     flushPostFlushCbs()

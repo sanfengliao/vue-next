@@ -29,13 +29,16 @@ export type SchedulerCbs = SchedulerCb | SchedulerCb[]
 let isFlushing = false
 let isFlushPending = false
 
+// job queue 像组件的更新函数就是这里面的一个job queue
 const queue: (SchedulerJob | null)[] = []
 let flushIndex = 0
 
+// pre job queue job queue清空之前执行里面的job，比如watch 的会掉函数
 const pendingPreFlushCbs: SchedulerCb[] = []
 let activePreFlushCbs: SchedulerCb[] | null = null
 let preFlushIndex = 0
 
+// post job queue，job queue清空之后执行里面的job，
 const pendingPostFlushCbs: SchedulerCb[] = []
 let activePostFlushCbs: SchedulerCb[] | null = null
 let postFlushIndex = 0
@@ -53,6 +56,10 @@ export function nextTick(fn?: () => void): Promise<void> {
   return fn ? p.then(fn) : p
 }
 
+/**
+ *
+ * @param job 在组件更新时，instance.update函数是一个Job, @see {@link renderer.ts}
+ */
 export function queueJob(job: SchedulerJob) {
   // the dedupe search uses the startIndex argument of Array.includes()
   // by default the search index includes the current job that is being run
@@ -60,6 +67,7 @@ export function queueJob(job: SchedulerJob) {
   // if the job is a watch() callback, the search will start with a +1 index to
   // allow it recursively trigger itself - it is the user's responsibility to
   // ensure it doesn't end up in an infinite loop.
+  // 如果queue(job队列)当中没有任务, 或者queue正在flush(清空)，但是queue中余下还没有执行的job中没有该job，就将该job入队
   if (
     (!queue.length ||
       !queue.includes(
@@ -75,6 +83,7 @@ export function queueJob(job: SchedulerJob) {
 
 function queueFlush() {
   if (!isFlushing && !isFlushPending) {
+    // 准备flush
     isFlushPending = true
     currentFlushPromise = resolvedPromise.then(flushJobs)
   }
@@ -125,6 +134,7 @@ export function flushPreFlushCbs(
   parentJob: SchedulerJob | null = null
 ) {
   if (pendingPreFlushCbs.length) {
+    // 当前正在执行的job
     currentPreFlushParentJob = parentJob
     activePreFlushCbs = [...new Set(pendingPreFlushCbs)]
     pendingPreFlushCbs.length = 0
@@ -136,9 +146,11 @@ export function flushPreFlushCbs(
       preFlushIndex < activePreFlushCbs.length;
       preFlushIndex++
     ) {
+      // 检查是否出现递归任务
       if (__DEV__) {
         checkRecursiveUpdates(seen!, activePreFlushCbs[preFlushIndex])
       }
+      // 执行job
       activePreFlushCbs[preFlushIndex]()
     }
     activePreFlushCbs = null
@@ -164,7 +176,7 @@ export function flushPostFlushCbs(seen?: CountMap) {
     if (__DEV__) {
       seen = seen || new Map()
     }
-
+    // 保证job执行循序， 比如子组件的mounted比父组件的mountd先执行
     activePostFlushCbs.sort((a, b) => getId(a) - getId(b))
 
     for (
@@ -175,8 +187,10 @@ export function flushPostFlushCbs(seen?: CountMap) {
       if (__DEV__) {
         checkRecursiveUpdates(seen!, activePostFlushCbs[postFlushIndex])
       }
+      // 执行job
       activePostFlushCbs[postFlushIndex]()
     }
+    // 重置状态
     activePostFlushCbs = null
     postFlushIndex = 0
   }
@@ -187,11 +201,12 @@ const getId = (job: SchedulerJob | SchedulerCb) =>
 
 function flushJobs(seen?: CountMap) {
   isFlushPending = false
+  // 开始flushjob queue
   isFlushing = true
   if (__DEV__) {
     seen = seen || new Map()
   }
-
+  // 在清空job queue之前先清空pre job queue, 像在watch的回掉，在更新之前会调用
   flushPreFlushCbs(seen)
 
   // Sort queue before flush.
@@ -203,6 +218,7 @@ function flushJobs(seen?: CountMap) {
   //    its update can be skipped.
   // Jobs can never be null before flush starts, since they are only invalidated
   // during execution of another flushed job.
+  // 对job进行排序，确保先更新子组件，在更新父组件等这种有明确任务执行顺序的情况能正常运行
   queue.sort((a, b) => getId(a!) - getId(b!))
 
   try {
@@ -212,19 +228,22 @@ function flushJobs(seen?: CountMap) {
         if (__DEV__) {
           checkRecursiveUpdates(seen!, job)
         }
+        // 执行job
         callWithErrorHandling(job, null, ErrorCodes.SCHEDULER)
       }
     }
   } finally {
+    // job更新完成之重置状态
     flushIndex = 0
     queue.length = 0
-
+    // 清空post job queue，比如mouted这类钩子函数就是post job，在组件更新完成之后执行
     flushPostFlushCbs(seen)
 
     isFlushing = false
     currentFlushPromise = null
     // some postFlushCb queued jobs!
     // keep flushing until it drains.
+    // 如果job queue和post job queue 不为空, 继续清空
     if (queue.length || pendingPostFlushCbs.length) {
       flushJobs(seen)
     }
